@@ -34,6 +34,7 @@ jobs:
     - name: Run tests
       uses: reactivecircus/android-emulator-runner@v2
       with:
-        api-level: 21
+        # lib_ass_media 的 minSdk 已随 media3 1.12.0-alpha01 抬到 24
+        api-level: 24
         arch: ${{ matrix.arch }}
         script: ./gradlew test connectedAndroidTest

@@ -5,11 +5,13 @@ plugins {
 
 android {
     namespace = "io.github.peerless2012.ass.demo"
-    compileSdk = 35
+    // 跟随 lib_ass_media（media3 1.12.0-alpha01 要求 minCompileSdk=37）
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "io.github.peerless2012.ass"
-        minSdk = 21
+        // 跟随 lib_ass_media（media3 1.12.0-alpha01 要求 24）
+        minSdk = 24
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"

@@ -1,0 +1,47 @@
+name: Build AAR
+
+# 产出可直接落地到消费方 libs/ 的 release aar（lib_ass / lib_ass_kt / lib_ass_media）。
+# Maven Central 发布走 publish.yml（仅 release 事件），这里只打包不发布。
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-aar:
+    name: Build release AAR
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+      with:
+        submodules: recursive
+
+    - name: Run setup-libraries composite action
+      uses: ./lib_ass/src/main/cpp/libass-cmake/.github/actions/setup-libraries
+      with:
+        libass-cmake-path: ${{ github.workspace }}/lib_ass/src/main/cpp/libass-cmake
+
+    - name: Assemble release
+      run: ./gradlew :lib_ass:assembleRelease :lib_ass_kt:assembleRelease :lib_ass_media:assembleRelease --stacktrace
+
+    - name: Collect artifacts
+      run: |
+        mkdir -p aar-out
+        cp lib_ass/build/outputs/aar/*-release.aar aar-out/
+        cp lib_ass_kt/build/outputs/aar/*-release.aar aar-out/
+        cp lib_ass_media/build/outputs/aar/*-release.aar aar-out/
+        ls -lh aar-out
+
+    - name: Upload AAR
+      uses: actions/upload-artifact@v4
+      with:
+        name: ass-aar-${{ github.sha }}
+        path: aar-out/*.aar
+        if-no-files-found: error
+        retention-days: 30

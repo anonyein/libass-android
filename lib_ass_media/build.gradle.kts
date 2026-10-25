@@ -8,10 +8,12 @@ plugins {
 
 android {
     namespace = "io.github.peerless2012.exo"
-    compileSdk = 36
+    // media3 1.12.0-alpha01 的 aar 元数据声明 minCompileSdk=37
+    compileSdk = 37
 
     defaultConfig {
-        minSdk = 21
+        // media3 1.12.0-alpha01 的 aar 声明 minSdkVersion 24，低于此值清单合并会失败
+        minSdk = 24
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
