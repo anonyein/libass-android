@@ -63,6 +63,12 @@ class AssSubtitleTextureView : TextureView, AssSubtitleRender, TextureView.Surfa
         fun onSurfaceDestroyed()
     }
 
+    /**
+     * Read from the ExoPlayer playback thread (via [requestRender]) and written on the main thread.
+     * Only published after [AssRenderThread.start] has created its handler, so any thread that
+     * sees a non-null value can post to it safely.
+     */
+    @Volatile
     private var renderThread: AssRenderThread? = null
 
     override fun requestRender(timestampNanos: Long) {
@@ -70,10 +76,12 @@ class AssSubtitleTextureView : TextureView, AssSubtitleRender, TextureView.Surfa
     }
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-        AssRenderThread(surface, width, height, AssRender(assHandler)).also {
-            renderThread = it
-            it.start()
-        }
+        // Start first, publish second: the playback thread calls requestRender() concurrently,
+        // and publishing before start() let it reach an uninitialized handler
+        // (UninitializedPropertyAccessException, which fails playback as an ExoPlaybackException).
+        val thread = AssRenderThread(surface, width, height, AssRender(assHandler))
+        thread.start()
+        renderThread = thread
     }
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
@@ -107,7 +115,9 @@ class AssSubtitleTextureView : TextureView, AssSubtitleRender, TextureView.Surfa
         private val MSG_SURFACE_SIZE_CHANGED = 3
         private val MSG_RELEASE = 4
 
-        private lateinit var handler: Handler
+        /** Created in [start]; null before that, so callers skip instead of throwing. */
+        @Volatile
+        private var handler: Handler? = null
 
         private var eglDisplay: EGLDisplay = EGL14.EGL_NO_DISPLAY
         private var eglContext: EGLContext = EGL14.EGL_NO_CONTEXT
@@ -116,23 +126,33 @@ class AssSubtitleTextureView : TextureView, AssSubtitleRender, TextureView.Surfa
 
         override fun start() {
             super.start()
-            handler = Handler(looper, this)
-            handler.sendEmptyMessage(MSG_INIT)
+            // getLooper() blocks until the thread's looper is prepared.
+            Handler(looper, this).also {
+                handler = it
+                it.sendEmptyMessage(MSG_INIT)
+            }
         }
 
         fun requestRender(timestampNanos: Long) {
-            handler.removeMessages(MSG_DRAW)
-            handler.obtainMessage(MSG_DRAW, timestampNanos).sendToTarget()
+            val h = handler ?: return
+            h.removeMessages(MSG_DRAW)
+            h.obtainMessage(MSG_DRAW, timestampNanos).sendToTarget()
         }
 
         fun onSurfaceSizeChanged(width: Int, height: Int) {
             this.width = width
             this.height = height
-            handler.sendEmptyMessage(MSG_SURFACE_SIZE_CHANGED)
+            handler?.sendEmptyMessage(MSG_SURFACE_SIZE_CHANGED)
         }
 
         fun release() {
-            handler.sendEmptyMessage(MSG_RELEASE)
+            val h = handler
+            if (h == null) {
+                // start() never ran; nothing to release on the render thread.
+                quit()
+                return
+            }
+            h.sendEmptyMessage(MSG_RELEASE)
         }
 
         override fun handleMessage(msg: Message): Boolean {
