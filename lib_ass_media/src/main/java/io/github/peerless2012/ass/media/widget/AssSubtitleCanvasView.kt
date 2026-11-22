@@ -29,6 +29,8 @@ class AssSubtitleCanvasView : View, AssSubtitleRender {
         xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_OVER)
     }
 
+    // Written on the main thread, read from the player thread in requestRender.
+    @Volatile
     private var assExecutor: AssExecutor? = null
 
     private var assFrame: AssFrame? = null
@@ -93,7 +95,7 @@ class AssSubtitleCanvasView : View, AssSubtitleRender {
     }
 
     override fun requestRender(timestampNanos: Long) {
-        assExecutor?.asyncRenderFrame(timestampNanos, AssTexType.BITMAP_ALPHA, assRenderCallback)
+        assExecutor?.asyncRenderFrame(timestampNanos, AssTexType.BITMAP_ALPHA, assHandler.videoColorSpace, assRenderCallback)
     }
 
     override fun onDraw(canvas: Canvas) {
